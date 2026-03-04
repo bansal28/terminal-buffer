@@ -780,6 +780,77 @@ class TerminalBufferTest {
             assertEquals(' ', oddBuf.getChar(10, 0))
         }
     }
+
+    @Nested
+    inner class Resize {
+
+        @Test
+        fun `shrink height pushes lines to scrollback`() {
+            buf.setCursor(0, 0); buf.write("L0")
+            buf.setCursor(0, 1); buf.write("L1")
+            buf.setCursor(0, 2); buf.write("L2")
+            buf.setCursor(0, 3); buf.write("L3")
+            buf.setCursor(0, 4); buf.write("L4")
+
+            buf.resize(10, 3)
+            assertEquals(3, buf.height)
+            assertEquals(2, buf.scrollbackSize)
+            assertEquals("L0", buf.getScrollbackLine(0))
+            assertEquals("L1", buf.getScrollbackLine(1))
+            assertEquals("L2", buf.getLine(0))
+            assertEquals("L3", buf.getLine(1))
+            assertEquals("L4", buf.getLine(2))
+        }
+
+        @Test
+        fun `grow height adds empty lines at bottom`() {
+            buf.write("Data")
+            buf.resize(10, 8)
+            assertEquals(8, buf.height)
+            assertEquals("Data", buf.getLine(0))
+            assertEquals("", buf.getLine(7))
+        }
+
+        @Test
+        fun `shrink width truncates lines`() {
+            buf.write("0123456789")
+            buf.resize(5, 5)
+            assertEquals(5, buf.width)
+            assertEquals("01234", buf.getLine(0))
+        }
+
+        @Test
+        fun `grow width pads lines`() {
+            buf.write("ABC")
+            buf.resize(20, 5)
+            assertEquals(20, buf.width)
+            assertEquals("ABC", buf.getLine(0))
+            assertEquals(' ', buf.getChar(10, 0))
+        }
+
+        @Test
+        fun `resize clamps cursor`() {
+            buf.setCursor(9, 4)
+            buf.resize(5, 3)
+            assertEquals(4, buf.cursorCol)
+            assertEquals(2, buf.cursorRow)
+        }
+
+        @Test
+        fun `resize with invalid dimensions throws`() {
+            assertThrows<IllegalArgumentException> { buf.resize(0, 5) }
+            assertThrows<IllegalArgumentException> { buf.resize(5, 0) }
+            assertThrows<IllegalArgumentException> { buf.resize(-1, -1) }
+        }
+
+        @Test
+        fun `resize also adjusts scrollback line widths`() {
+            buf.write("OldLine123")
+            buf.insertLineAtBottom()
+            buf.resize(5, 5)
+            assertEquals("OldLi", buf.getScrollbackLine(0))
+        }
+    }
 }
 
 
