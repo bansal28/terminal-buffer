@@ -176,6 +176,63 @@ class TerminalBuffer(
         clearScreen()
     }
 
+// ── Content access ──────────────────────────────────────────────
+
+    fun getCell(col: Int, row: Int): Cell {
+        requireScreenBounds(col, row)
+        return screen[row][col]
+    }
+
+    fun getChar(col: Int, row: Int): Char = getCell(col, row).character
+
+    fun getAttributes(col: Int, row: Int): CellAttributes = getCell(col, row).attributes
+
+    fun getCellAbsolute(col: Int, absoluteRow: Int): Cell {
+        require(col in 0 until width) { "Column $col out of bounds [0, $width)" }
+        require(absoluteRow in 0 until scrollbackSize + height) {
+            "Absolute row $absoluteRow out of bounds [0, ${scrollbackSize + height})"
+        }
+        return if (absoluteRow < scrollbackSize) {
+            scrollback[absoluteRow].getOrElse(col) { Cell.EMPTY }
+        } else {
+            screen[absoluteRow - scrollbackSize][col]
+        }
+    }
+
+    fun getCharAbsolute(col: Int, absoluteRow: Int): Char =
+        getCellAbsolute(col, absoluteRow).character
+
+    fun getAttributesAbsolute(col: Int, absoluteRow: Int): CellAttributes =
+        getCellAbsolute(col, absoluteRow).attributes
+
+    fun getLine(row: Int): String {
+        require(row in 0 until height) { "Row $row out of screen bounds [0, $height)" }
+        return lineToString(screen[row])
+    }
+
+    fun getScrollbackLine(row: Int): String {
+        require(row in 0 until scrollbackSize) {
+            "Scrollback row $row out of bounds [0, $scrollbackSize)"
+        }
+        return lineToString(scrollback[row])
+    }
+
+    fun getLineAbsolute(absoluteRow: Int): String {
+        require(absoluteRow in 0 until scrollbackSize + height) {
+            "Absolute row $absoluteRow out of bounds [0, ${scrollbackSize + height})"
+        }
+        return if (absoluteRow < scrollbackSize) {
+            getScrollbackLine(absoluteRow)
+        } else {
+            getLine(absoluteRow - scrollbackSize)
+        }
+    }
+
+    fun getScreenContent(): String =
+        (0 until height).joinToString("\n") { getLine(it) }
+
+    fun getFullContent(): String =
+        (0 until scrollbackSize + height).joinToString("\n") { getLineAbsolute(it) }
 
     private fun clearWideCharGhost(col: Int, row: Int) {
         if (col < 0 || col >= width || row < 0 || row >= height) return
@@ -192,6 +249,19 @@ class TerminalBuffer(
         while (scrollback.size > maxScrollback) {
             scrollback.removeFirst()
         }
+    }
+    private fun requireScreenBounds(col: Int, row: Int) {
+        require(col in 0 until width) { "Column $col out of bounds [0, $width)" }
+        require(row in 0 until height) { "Row $row out of bounds [0, $height)" }
+    }
+
+    private fun lineToString(line: Array<Cell>): String {
+        val sb = StringBuilder()
+        for (cell in line) {
+            if (cell.isWideContinuation) continue
+            sb.append(cell.character)
+        }
+        return sb.toString().trimEnd()
     }
 
     companion object {
