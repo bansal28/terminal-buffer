@@ -1,0 +1,4 @@
+package terminalbuffer
+
+class CharWidth {
+}
