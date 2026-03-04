@@ -702,4 +702,84 @@ class TerminalBufferTest {
             }
         }
     }
+
+    @Nested
+    inner class WideCharacters {
+
+        @Test
+        fun `wide char occupies two cells`() {
+            buf.write("\u4E16") // 世 — CJK, width 2
+            val cell0 = buf.getCell(0, 0)
+            val cell1 = buf.getCell(1, 0)
+            assertEquals('\u4E16', cell0.character)
+            assertTrue(cell0.isWideChar)
+            assertTrue(cell1.isWideContinuation)
+        }
+
+        @Test
+        fun `cursor advances by 2 for wide char`() {
+            buf.write("\u4E16")
+            assertEquals(2, buf.cursorCol)
+        }
+
+        @Test
+        fun `wide char that does not fit is not written`() {
+            buf.setCursor(9, 0)
+            buf.write("\u4E16")
+            assertEquals(' ', buf.getChar(9, 0))
+        }
+
+        @Test
+        fun `overwriting leading cell of wide char clears continuation`() {
+            buf.write("\u4E16")
+            buf.setCursor(0, 0)
+            buf.write("A")
+            assertEquals('A', buf.getChar(0, 0))
+            assertEquals(' ', buf.getChar(1, 0))
+        }
+
+        @Test
+        fun `overwriting continuation cell of wide char clears leading`() {
+            buf.write("\u4E16")
+            buf.setCursor(1, 0)
+            buf.write("B")
+            assertEquals(' ', buf.getChar(0, 0))
+            assertEquals('B', buf.getChar(1, 0))
+        }
+
+        @Test
+        fun `mixed narrow and wide chars`() {
+            buf.write("A\u4E16B")
+            assertEquals('A', buf.getChar(0, 0))
+            assertEquals('\u4E16', buf.getChar(1, 0))
+            assertTrue(buf.getCell(2, 0).isWideContinuation)
+            assertEquals('B', buf.getChar(3, 0))
+            assertEquals(4, buf.cursorCol)
+        }
+
+        @Test
+        fun `getLine skips continuation cells in output`() {
+            buf.write("A\u4E16B")
+            assertEquals("A\u4E16B", buf.getLine(0))
+        }
+
+        @Test
+        fun `fill line with wide char`() {
+            buf.fillLine('\u4E16')
+            for (col in 0 until 10 step 2) {
+                assertEquals('\u4E16', buf.getChar(col, 0))
+                assertTrue(buf.getCell(col, 0).isWideChar)
+                assertTrue(buf.getCell(col + 1, 0).isWideContinuation)
+            }
+        }
+
+        @Test
+        fun `fill line with wide char on odd width pads last cell`() {
+            val oddBuf = TerminalBuffer(width = 11, height = 3)
+            oddBuf.fillLine('\u4E16')
+            assertEquals(' ', oddBuf.getChar(10, 0))
+        }
+    }
 }
+
+
