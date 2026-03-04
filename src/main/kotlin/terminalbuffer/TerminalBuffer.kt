@@ -176,7 +176,31 @@ class TerminalBuffer(
         clearScreen()
     }
 
-// ── Content access ──────────────────────────────────────────────
+
+    fun resize(newWidth: Int, newHeight: Int) {
+        require(newWidth > 0 && newHeight > 0) { "Dimensions must be positive" }
+
+        val resizedLines = screen.map { line -> resizeLine(line, newWidth) }
+
+        val linesToMove = resizedLines.size - newHeight
+        if (linesToMove > 0) {
+            for (i in 0 until linesToMove) {
+                addToScrollback(resizedLines[i])
+            }
+            screen = resizedLines.drop(linesToMove).toTypedArray()
+        } else {
+            val extra = Array(-linesToMove) { emptyLine(newWidth) }
+            screen = (resizedLines + extra).toTypedArray()
+        }
+
+        for (i in scrollback.indices) {
+            scrollback[i] = resizeLine(scrollback[i], newWidth)
+        }
+
+        width = newWidth
+        height = newHeight
+        setCursor(cursorCol, cursorRow)
+    }
 
     fun getCell(col: Int, row: Int): Cell {
         requireScreenBounds(col, row)
@@ -233,6 +257,12 @@ class TerminalBuffer(
 
     fun getFullContent(): String =
         (0 until scrollbackSize + height).joinToString("\n") { getLineAbsolute(it) }
+
+    private fun resizeLine(line: Array<Cell>, newWidth: Int): Array<Cell> {
+        return Array(newWidth) { col ->
+            if (col < line.size) line[col] else Cell.EMPTY
+        }
+    }
 
     private fun clearWideCharGhost(col: Int, row: Int) {
         if (col < 0 || col >= width || row < 0 || row >= height) return
